@@ -1,0 +1,8 @@
+CREATE TABLE signatures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    signature TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+);
