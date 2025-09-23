@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(
     name = "wallet-cli",
-    about = "A simple blockchain wallet CLI with Diesel"
+    about = "A simple CLI blockchain wallet for secp256k1 addresses."
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -25,6 +25,12 @@ pub enum Commands {
     },
     /// List signatures from a wallet
     ListSignatures {
+        #[arg(short, long)]
+        wallet_id: i32,
+    },
+    ClearWallets,
+    ClearSignatures,
+    ClearSignaturesForWallet {
         #[arg(short, long)]
         wallet_id: i32,
     },

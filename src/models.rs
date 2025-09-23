@@ -1,9 +1,8 @@
 use super::schema::{signatures, wallets};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
-use serde::{Deserialize, Serialize};
 
-#[derive(Queryable, Selectable, Serialize, Deserialize, Debug)]
+#[derive(Queryable, Selectable, Debug)]
 #[diesel(table_name = wallets)]
 pub struct Wallet {
     pub id: Option<i32>,

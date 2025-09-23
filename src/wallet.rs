@@ -1,12 +1,11 @@
-use crate::db::establish_connection;
 use crate::models::{NewWallet, Wallet};
 use crate::schema::wallets::dsl::*;
 
 use diesel::prelude::*;
 use secp256k1::Secp256k1;
+use std::io::Write;
 
-pub fn create_wallet() -> anyhow::Result<()> {
-    let conn = &mut establish_connection();
+pub fn create_wallet<W: Write>(conn: &mut SqliteConnection, out: &mut W) -> anyhow::Result<()> {
     let secp = Secp256k1::new();
     let (secret_key, public_key) = secp.generate_keypair(&mut rand::rng());
 
@@ -21,20 +20,29 @@ pub fn create_wallet() -> anyhow::Result<()> {
         .values(&new_wallet)
         .execute(conn)?;
 
-    println!("Created wallet with address: {wallet_address}");
+    writeln!(out, "Created wallet with address: {wallet_address}")?;
     Ok(())
 }
 
-pub fn list_wallets() -> anyhow::Result<()> {
-    let conn = &mut establish_connection();
+pub fn list_wallets<W: Write>(conn: &mut SqliteConnection, out: &mut W) -> anyhow::Result<()> {
     let results: Vec<Wallet> = wallets.limit(10).load::<Wallet>(conn)?;
 
-    for w in results {
-        println!(
-            "ID: {:?}, Address: {}, Created: {}",
-            w.id, w.address, w.created_at
-        );
+    writeln!(out, "Wallets:")?;
+    for w in &results {
+        writeln!(
+            out,
+            "ID: {}, Address: {}, Created: {}",
+            w.id.unwrap(),
+            w.address,
+            w.created_at
+        )?;
     }
+    writeln!(out, "{} wallets listed.", results.len())?;
+    Ok(())
+}
+
+pub fn clear_wallets(conn: &mut SqliteConnection) -> anyhow::Result<()> {
+    diesel::delete(wallets).execute(conn)?;
     Ok(())
 }
 
@@ -43,67 +51,63 @@ mod tests {
     use super::*;
     use diesel::Connection;
 
-    // helper: create an in-memory SQLite DB with the wallets table
+    use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+
+    pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("./migrations");
+
     fn setup_test_db() -> SqliteConnection {
         let mut conn = SqliteConnection::establish(":memory:").unwrap();
-        diesel::sql_query(
-            "CREATE TABLE wallets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                address TEXT NOT NULL,
-                private_key TEXT NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );",
-        )
-        .execute(&mut conn)
-        .unwrap();
+        conn.run_pending_migrations(MIGRATIONS).unwrap();
         conn
     }
 
     #[test]
-    fn test_insert_wallet() {
+    fn test_create_wallet() {
         let mut conn = setup_test_db();
+        let mut buf = Vec::new();
 
-        // generate keypair
-        let secp = Secp256k1::new();
-        let (secret_key, public_key) = secp.generate_keypair(&mut rand::rng());
-        let w_address = hex::encode(public_key.serialize());
+        create_wallet(&mut conn, &mut buf).unwrap();
+        let wallet: Wallet = wallets.load(&mut conn).unwrap().into_iter().next().unwrap();
 
-        let new_wallet = NewWallet {
-            address: &w_address,
-            private_key: &hex::encode(secret_key.secret_bytes()),
-        };
+        assert!(!wallet.address.is_empty());
+        assert!(!wallet.private_key.is_empty());
 
-        diesel::insert_into(wallets)
-            .values(&new_wallet)
-            .execute(&mut conn)
-            .unwrap();
-
-        let results: Vec<Wallet> = wallets.load(&mut conn).unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].address, w_address);
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("Created wallet with address"));
     }
 
     #[test]
-    fn test_multiple_wallets() {
+    fn test_list_wallets() {
         let mut conn = setup_test_db();
+        let mut buf = Vec::new();
 
-        for _ in 0..3 {
-            let secp = Secp256k1::new();
-            let (secret_key, public_key) = secp.generate_keypair(&mut rand::rng());
-            let w_address = hex::encode(public_key.serialize());
+        // Insert multiple wallets
+        create_wallet(&mut conn, &mut buf).unwrap();
+        create_wallet(&mut conn, &mut buf).unwrap();
 
-            let new_wallet = NewWallet {
-                address: &w_address,
-                private_key: &hex::encode(secret_key.secret_bytes()),
-            };
+        // Now capture list_wallets output
+        buf.clear();
+        list_wallets(&mut conn, &mut buf).unwrap();
 
-            diesel::insert_into(wallets)
-                .values(&new_wallet)
-                .execute(&mut conn)
-                .unwrap();
-        }
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("Wallets:"));
+        assert!(output.contains("wallets listed."));
+    }
+
+    #[test]
+    fn test_clear_wallets() {
+        let mut conn = setup_test_db();
+        let mut buf = Vec::new();
+
+        create_wallet(&mut conn, &mut buf).unwrap();
+        create_wallet(&mut conn, &mut buf).unwrap();
 
         let results: Vec<Wallet> = wallets.load(&mut conn).unwrap();
-        assert_eq!(results.len(), 3);
+        assert_eq!(results.len(), 2);
+
+        clear_wallets(&mut conn).unwrap();
+
+        let results: Vec<Wallet> = wallets.load(&mut conn).unwrap();
+        assert_eq!(results.len(), 0);
     }
 }

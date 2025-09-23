@@ -2,27 +2,38 @@ mod cli;
 mod db;
 mod models;
 mod schema;
-mod sign;
+mod signature;
 mod wallet;
 
 use clap::Parser;
 use cli::{Cli, Commands};
 
 fn main() {
-    let cli = Cli::parse();
+    let conn = &mut db::establish_connection();
+    let out = &mut std::io::stdout();
 
-    match cli.command {
+    match Cli::parse().command {
         Commands::NewWallet => {
-            wallet::create_wallet().expect("Failed to create wallet");
+            wallet::create_wallet(conn, out).expect("Failed to create wallet.");
         }
         Commands::ListWallets => {
-            wallet::list_wallets().expect("Failed to list wallets");
+            wallet::list_wallets(conn, out).expect("Failed to list wallets.");
         }
+        Commands::ClearWallets => wallet::clear_wallets(conn).expect("Failed to clear wallets."),
+
         Commands::Sign { wallet_id, message } => {
-            sign::sign_message(wallet_id, &message).expect("Failed to sign message");
+            signature::sign_message(conn, wallet_id, &message, out)
+                .expect("Failed to sign message.");
         }
         Commands::ListSignatures { wallet_id } => {
-            sign::list_signatures(wallet_id).expect("Failed to list signatures");
+            signature::list_signatures(conn, wallet_id, out).expect("Failed to list signatures.");
+        }
+        Commands::ClearSignatures => {
+            signature::clear_signatures(conn).expect("Failed to clear signatures.");
+        }
+        Commands::ClearSignaturesForWallet { wallet_id } => {
+            signature::clear_signatures_for_wallet(conn, wallet_id)
+                .expect("Failed to clear signatures.");
         }
     }
 }
