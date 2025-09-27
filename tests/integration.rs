@@ -1,167 +1,78 @@
 use assert_cmd::Command;
 
+fn run_cmd(args: &[&str]) -> String {
+    let output = Command::cargo_bin("wallet-cli")
+        .unwrap()
+        .args(args)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "Command {:?} failed: {}",
+        args,
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    String::from_utf8(output.stdout).unwrap()
+}
+
+fn extract_wallet_ids(stdout: &str) -> Vec<i32> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            if let Some(id_str) = line.strip_prefix("ID: ") {
+                id_str.split(',').next()?.trim().parse().ok()
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 #[test]
-fn integration_test() {
-    // 1. Create wallet 1
-    let output = Command::cargo_bin("wallet_cli")
-        .unwrap()
-        .arg("new-wallet")
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("Created wallet"));
+fn integration_test_both_key_types() {
+    let key_types = ["ecdsa", "eddsa"];
 
-    // 2. Create wallet 2
-    let output = Command::cargo_bin("wallet_cli")
-        .unwrap()
-        .arg("new-wallet")
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("Created wallet"));
+    let mut wallet_ids = Vec::new();
 
-    // 3. List wallets and extract IDs
-    let output = Command::cargo_bin("wallet_cli")
-        .unwrap()
-        .arg("list-wallets")
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
+    // 1. Create 2 wallets per key type
+    for &key_type in &key_types {
+        for _ in 0..2 {
+            run_cmd(&["new-wallet", "--key-type", key_type]);
+        }
+        let stdout = run_cmd(&["list-wallets"]);
+        wallet_ids.extend(extract_wallet_ids(&stdout));
+    }
 
-    let wallet_ids: Vec<i32> = stdout
-        .lines()
-        .filter_map(|line| {
-            if let Some(id_str) = line.strip_prefix("ID: ") {
-                id_str.split(',').next()?.trim().parse().ok()
-            } else {
-                None
-            }
-        })
-        .collect();
-        
-    assert!(wallet_ids.len() >= 2, "Expected at least 2 wallets");
-
-    let w1 = wallet_ids[0];
-    let w2 = wallet_ids[1];
-
-    // 4. Sign 2 messages per wallet
+    // 2. Sign 2 messages per wallet
     let messages = ["msg1", "msg2"];
-    for &msg in &messages {
-        let output = Command::cargo_bin("wallet_cli")
-            .unwrap()
-            .args(&["sign", "--wallet-id", &w1.to_string(), "--message", msg])
-            .output()
-            .unwrap();
-
-        assert!(output.status.success());
-        let stdout = String::from_utf8(output.stdout).unwrap();
-        assert!(stdout.contains("Signature:"));
-
-        let output = Command::cargo_bin("wallet_cli")
-            .unwrap()
-            .args(&["sign", "--wallet-id", &w2.to_string(), "--message", msg])
-            .output()
-            .unwrap();
-
-        assert!(output.status.success());
-        let stdout = String::from_utf8(output.stdout).unwrap();
-        assert!(stdout.contains("Signature:"));
+    for &wallet_id in &wallet_ids {
+        for &msg in &messages {
+            run_cmd(&["sign", "--wallet-id", &wallet_id.to_string(), "--message", msg]);
+        }
     }
 
-    // 5. Create wallet 3 and sign 2 messages
-    let output = Command::cargo_bin("wallet_cli")
-        .unwrap()
-        .arg("new-wallet")
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-
-    let output = Command::cargo_bin("wallet_cli")
-        .unwrap()
-        .arg("list-wallets")
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    let w3: i32 = stdout
-        .lines()
-        .filter_map(|line| {
-            if let Some(id_str) = line.strip_prefix("ID: ") {
-                id_str.split(',').next()?.trim().parse().ok()
-            } else {
-                None
-            }
-        })
-        .max()
-        .unwrap(); // newest wallet
-
-    for &msg in &messages {
-        let output = Command::cargo_bin("wallet_cli")
-            .unwrap()
-            .args(&["sign", "--wallet-id", &w3.to_string(), "--message", msg])
-            .output()
-            .unwrap();
-        assert!(output.status.success());
-        let stdout = String::from_utf8(output.stdout).unwrap();
-        assert!(stdout.contains("Signature:"));
+    // 3. Verify all signatures exist
+    for &wallet_id in &wallet_ids {
+        let stdout = run_cmd(&["list-signatures", "--wallet-id", &wallet_id.to_string()]);
+        for &msg in &messages {
+            assert!(stdout.contains(msg));
+        }
     }
 
-    // 6. Verify all signatures exist
-    for &w in &[w1, w2, w3] {
-        let output = Command::cargo_bin("wallet_cli")
-            .unwrap()
-            .args(&["list-signatures", "--wallet-id", &w.to_string()])
-            .output()
-            .unwrap();
-        assert!(output.status.success());
-        let stdout = String::from_utf8(output.stdout).unwrap();
-        assert!(stdout.contains("msg1"));
-        assert!(stdout.contains("msg2"));
+    // 4. Clear all signatures
+    run_cmd(&["clear-signatures"]);
+
+    for &wallet_id in &wallet_ids {
+        let stdout = run_cmd(&["list-signatures", "--wallet-id", &wallet_id.to_string()]);
+        for &msg in &messages {
+            assert!(!stdout.contains(msg));
+        }
     }
 
-    // 7. Clear all signatures
-    let output = Command::cargo_bin("wallet_cli")
-        .unwrap()
-        .arg("clear-signatures")
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-
-    // 8. Verify signatures are cleared out.
-    for &w in &[w1, w2, w3] {
-        let output = Command::cargo_bin("wallet_cli")
-            .unwrap()
-            .args(&["list-signatures", "--wallet-id", &w.to_string()])
-            .output()
-            .unwrap();
-
-        assert!(output.status.success());
-
-        let stdout = String::from_utf8(output.stdout).unwrap();
-        assert!(!stdout.contains("msg1"));
-        assert!(!stdout.contains("msg2"));
-    }
-
-    // 9. Clear wallets
-    let output = Command::cargo_bin("wallet_cli")
-        .unwrap()
-        .arg("clear-wallets")
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-
-    // 10. Verify wallets are cleared out.
-    let output = Command::cargo_bin("wallet_cli")
-        .unwrap()
-        .arg("list-wallets")
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-
-    let stdout = String::from_utf8(output.stdout).unwrap();
+    // 5. Clear wallets
+    run_cmd(&["clear-wallets"]);
+    let stdout = run_cmd(&["list-wallets"]);
     assert!(!stdout.contains("ID:"));
 }

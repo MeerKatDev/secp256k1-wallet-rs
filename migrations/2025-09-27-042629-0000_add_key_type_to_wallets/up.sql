@@ -1,0 +1,1 @@
+ALTER TABLE wallets ADD COLUMN key_type TEXT NOT NULL DEFAULT 'ecdsa';

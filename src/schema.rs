@@ -16,6 +16,7 @@ diesel::table! {
         address -> Text,
         private_key -> Text,
         created_at -> Timestamp,
+        key_type -> Text,
     }
 }
 

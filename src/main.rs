@@ -1,5 +1,6 @@
 mod cli;
 mod db;
+pub mod key_type;
 mod models;
 mod schema;
 mod signature;
@@ -13,8 +14,8 @@ fn main() {
     let out = &mut std::io::stdout();
 
     match Cli::parse().command {
-        Commands::NewWallet => {
-            wallet::create_wallet(conn, out).expect("Failed to create wallet.");
+        Commands::NewWallet { key_type } => {
+            wallet::create_wallet(conn, key_type, out).expect("Failed to create wallet.");
         }
         Commands::ListWallets => {
             wallet::list_wallets(conn, out).expect("Failed to list wallets.");

@@ -1,4 +1,4 @@
-use super::schema::{signatures, wallets};
+use crate::schema::{signatures, wallets};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 
@@ -9,6 +9,7 @@ pub struct Wallet {
     pub address: String,
     pub private_key: String,
     pub created_at: NaiveDateTime,
+    pub key_type: String,
 }
 
 #[derive(Insertable)]
@@ -16,6 +17,7 @@ pub struct Wallet {
 pub struct NewWallet<'a> {
     pub address: &'a str,
     pub private_key: &'a str,
+    pub key_type: String,
 }
 
 #[derive(Queryable, Associations, Identifiable, Debug)]

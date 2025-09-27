@@ -1,3 +1,4 @@
+use crate::key_type::KeyType;
 use crate::models::{NewSignature, Signature, Wallet};
 use crate::schema::{signatures, wallets};
 use diesel::prelude::*;
@@ -14,7 +15,13 @@ pub fn sign_message<W: Write>(
         .filter(wallets::id.eq(wallet_id))
         .first(conn)?;
 
-    let sig_hex = make_ecdsa_signature(&wallet.private_key, msg)?;
+    let mut secret_bytes = [0u8; 32];
+    hex::decode_to_slice(wallet.private_key, &mut secret_bytes)?;
+
+    let sig_hex = match wallet.key_type.into() {
+        KeyType::Ecdsa => make_ecdsa_signature(&secret_bytes, msg.as_bytes()),
+        KeyType::Eddsa => make_eddsa_signature(&secret_bytes, msg.as_bytes()),
+    }?;
 
     let new_sig = NewSignature {
         wallet_id,
@@ -68,20 +75,26 @@ pub fn clear_signatures_for_wallet(
     Ok(())
 }
 
-fn make_ecdsa_signature(priv_key: &str, msg: &str) -> anyhow::Result<String> {
+fn make_ecdsa_signature(priv_key: &[u8; 32], msg: &[u8]) -> anyhow::Result<String> {
     use secp256k1::hashes::{sha256, Hash};
     use secp256k1::{Message, Secp256k1, SecretKey};
 
-    let mut secret_bytes = [0u8; 32];
-    hex::decode_to_slice(priv_key, &mut secret_bytes)?;
-    let secret = SecretKey::from_byte_array(secret_bytes)?;
+    let secret = SecretKey::from_byte_array(*priv_key)?;
     let secp = Secp256k1::new();
 
-    let digest = sha256::Hash::hash(msg.as_bytes());
+    let digest = sha256::Hash::hash(msg);
     let message = Message::from_digest(digest.to_byte_array());
     let sig = secp.sign_ecdsa(message, &secret);
 
     Ok(hex::encode(sig.serialize_der()))
+}
+
+fn make_eddsa_signature(priv_key: &[u8; 32], msg: &[u8]) -> anyhow::Result<String> {
+    use ed25519_dalek::{Signer, SigningKey};
+
+    let signing_key: SigningKey = SigningKey::from_bytes(priv_key);
+    let sig = signing_key.sign(msg);
+    Ok(hex::encode(sig.to_bytes()))
 }
 
 #[cfg(test)]
@@ -101,7 +114,7 @@ mod tests {
     }
 
     fn insert_test_wallet<W: Write>(conn: &mut SqliteConnection, out: &mut W) -> Wallet {
-        crate::wallet::create_wallet(conn, out).unwrap();
+        crate::wallet::create_wallet(conn, KeyType::Ecdsa, out).unwrap();
         wallets.order(id.desc()).first(conn).unwrap()
     }
 
