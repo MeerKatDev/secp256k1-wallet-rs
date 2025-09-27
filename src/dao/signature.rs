@@ -1,6 +1,7 @@
+use crate::db::models::{NewSignature, Signature, Wallet};
+use crate::db::schema::{signatures, wallets};
 use crate::key_type::KeyType;
-use crate::models::{NewSignature, Signature, Wallet};
-use crate::schema::{signatures, wallets};
+
 use diesel::prelude::*;
 use std::io::Write;
 
@@ -100,7 +101,7 @@ fn make_eddsa_signature(priv_key: &[u8; 32], msg: &[u8]) -> anyhow::Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::Wallet;
+    use crate::db::models::Wallet;
     use crate::signature::wallets::dsl::*;
 
     use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};

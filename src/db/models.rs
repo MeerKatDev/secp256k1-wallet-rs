@@ -1,4 +1,4 @@
-use crate::schema::{signatures, wallets};
+use crate::db::schema::{signatures, wallets};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 

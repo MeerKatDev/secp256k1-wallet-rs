@@ -1,6 +1,6 @@
+use crate::db::models::{NewWallet, Wallet};
+use crate::db::schema::wallets::dsl::*;
 use crate::key_type::KeyType;
-use crate::models::{NewWallet, Wallet};
-use crate::schema::wallets::dsl::*;
 
 use diesel::prelude::*;
 use std::io::Write;

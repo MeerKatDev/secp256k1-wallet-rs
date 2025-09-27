@@ -1,13 +1,11 @@
 mod cli;
+mod dao;
 mod db;
-pub mod key_type;
-mod models;
-mod schema;
-mod signature;
-mod wallet;
+mod key_type;
 
 use clap::Parser;
 use cli::{Cli, Commands};
+use dao::{signature, wallet};
 
 fn main() {
     let conn = &mut db::establish_connection();

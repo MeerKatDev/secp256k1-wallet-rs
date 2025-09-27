@@ -49,7 +49,13 @@ fn integration_test_both_key_types() {
     let messages = ["msg1", "msg2"];
     for &wallet_id in &wallet_ids {
         for &msg in &messages {
-            run_cmd(&["sign", "--wallet-id", &wallet_id.to_string(), "--message", msg]);
+            run_cmd(&[
+                "sign",
+                "--wallet-id",
+                &wallet_id.to_string(),
+                "--message",
+                msg,
+            ]);
         }
     }
 
