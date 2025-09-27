@@ -16,7 +16,7 @@ pub struct Cli {
 pub enum Commands {
     /// Create a new wallet
     NewWallet {
-        #[arg(short, long, value_enum)]
+        #[arg(short, long, default_value_t = KeyType::Ecdsa)]
         key_type: KeyType,
     },
     /// List all wallets

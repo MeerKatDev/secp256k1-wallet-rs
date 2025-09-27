@@ -1,6 +1,6 @@
 # Wallet handler with DB
 
-`wallet-cli` is a command-line interface for managing secp256k1 wallets and signatures. 
+`wallet-cli` is a command-line interface for managing secp256k1 and ed25519 wallets (despite the name) and signatures. 
 
 It is a simple CLI app which
  - creates keypairs/wallets
@@ -37,8 +37,12 @@ The commands follow the clap defaults:
 
 ```bash
 # Create two wallets
-cargo run -- new-wallet
-cargo run -- new-wallet
+
+# Default key type (ECDSA)
+wallet-cli new-wallet
+
+# Explicit key type
+wallet-cli new-wallet --key-type eddsa
 
 # List all wallets
 cargo run -- list-wallets
