@@ -61,3 +61,15 @@ cargo run -- clear-wallets
 
 # Clear all signatures
 cargo run -- clear-signatures
+```
+## Ideas to expand on it
+- More address types. At the moment the default is Ethereum derivation and Solana derivation. Make it one-to-one with every chain which address format is supported.
+- More key types. Support not just `ECDSA` and `EdDSA`, but also:
+  - Tezos’s `P-256`
+  - Bitcoin’s `secp256k1` multisig
+  - BLS signatures (used in Ethereum 2.0)
+- Add support for other DB types
+- At the moment the private key is stored in clear in the DB. Aside from using some DB methods to encrypt, the OS keychain could be used or revealing it with a passphrase
+- add lock for the whole 
+- (big one) Add on-chain services (e.g. send txs, query balances) (connecting other rs-libraries).
+- Introduce fuzz testing
